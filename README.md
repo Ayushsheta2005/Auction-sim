@@ -1,86 +1,80 @@
-# AuctionSim-Py 
+# AuctionSim-Py (RL Ready)
 
-Python-only, Celery-powered multi-slot auction simulator with user and seller dynamics, budget pacing, regulation, and configurable metrics.
+A multi-slot ad auction environment built in Python.
 
-## How to run (with Redis installation options)
+This project is designed to train **Reinforcement Learning (RL) agents** to bid optimally against highly dynamic, theory-backed background competitors in a simulated ad exchange.
 
-### 0) Create a virtualenv and install Python dependencies 
-from the **repo root**:
+## Features
+- **Gymnasium Environment:** Includes `AuctionEnv-v0` for dropping straight into standard RL libraries (PPO, DQN, SAC).
+- **Campaign Management:** Background sellers run decoupled campaigns using dynamic mathematical Strategies (Aggressive, ROI-Driven, Conservative, Risk-Averse, Exploratory).
+- **Algorithmic Marketing Theory:** Built to simulate real market dynamics where competitors actively adapt their bid shading multipliers via real-time feedback (spend, clicks, conversions) as the day progresses.
+- **Fast Simulated Users:** Generates millions of simulated user embeddings with distinct CTR/CVR responses.
+
+## Quick Start (RL Agent Training)
+
+The core focus of this repository is training an RL agent. To get started with the Gymnasium environment, just install the local package:
+
 ```bash
+# 1. Create a virtual environment
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
 
+# 2. Install the package
+pip install -e .
+pip install gymnasium
 ```
 
-### 1) Install and start Redis (choose ONE path)
+You can then test the environment in your Python scripts:
 
-**A) Docker (fastest, cross‑platform)**
+```python
+import gymnasium as gym
+import auction_sim.gym_env # Registers the environment
+from auction_sim.config import SimConfig
+
+# Load your configuration
+with open("configs/example.json") as f:
+    cfg = SimConfig.model_validate_json(f.read())
+
+# Create the training environment
+env = gym.make("AuctionEnv-v0", cfg=cfg, agent_seller_index=0)
+obs, info = env.reset()
+
+# Standard RL training loop...
+action = env.action_space.sample()
+obs, reward, terminated, truncated, info = env.step(action)
+```
+
+---
+
+## Legacy/Batch Simulation Mode (Optional: Celery & Redis)
+
+Before the Gymnasium environment was added, this platform was built as a static, large-scale parallel simulator. If you just want to generate millions of rows of Parquet/CSV market data (without Training an RL agent), you can use the distributed `cli.py` tool.
+
+This massive scale generation requires **Redis** and **Celery**.
+
+### 1) Install and start Redis
+If you want to use the distributed data generator, you need Redis running. The fastest way is Docker:
 ```bash
 docker compose up -d redis
-# verify
-docker compose logs redis | tail -n 20
 ```
-
-**B) Ubuntu/Debian (apt)**
-```bash
-sudo apt update
-sudo apt install -y redis-server
-# (optional) ensure Redis starts on boot
-sudo systemctl enable redis-server
-# start now and verify
-sudo systemctl start redis-server
-redis-cli ping   # should print: PONG
-```
-
-**C) Fedora/CentOS/RHEL**
-```bash
-# Fedora / RHEL 9+
-sudo dnf install -y redis
-sudo systemctl enable --now redis
-redis-cli ping
-# CentOS 7 / RHEL 7 (older)
-sudo yum install -y redis
-sudo systemctl enable --now redis
-redis-cli ping
-```
-
-**D) macOS (Homebrew)**
-```bash
-# install Homebrew first if not present: https://brew.sh
-brew update
-brew install redis
-# start as a background service
-brew services start redis
-redis-cli ping
-```
-
-**E) Windows**
-- Recommended: **WSL2 + Ubuntu** → then follow Ubuntu steps above, or
-- Use **Docker Desktop** and run: `docker compose up -d redis`
-
-> Tip: If Redis runs on a different host/port/db, set env vars before launching Celery:
-> `export CELERY_BROKER_URL=redis://<host>:<port>/<db>`
+*(Or install natively via `apt`/`brew` depending on your OS)*
 
 ### 2) Start a Celery worker
+Celery allows the platform to simulate different chunks of users (batches) simultaneously across multiple CPU cores.
 ```bash
 celery -A auction_sim.simulation.tasks worker --loglevel INFO
 ```
 
-### 3) Run a simulation
-**Single-process (local)**
-```bash
-python -m auction_sim.cli run --config configs/example.json
-```
-**Distributed (Celery)**
+### 3) Run a distributed simulation
 ```bash
 python -m auction_sim.cli run --config configs/example.json --distributed
 ```
 
 ### 4) Inspect outputs
+Outputs are saved as aggregated metrics:
 ```
-runs/<timestamp>/sellers.parquet  # per-seller KPIs
-runs/<timestamp>/metrics.parquet  # run-level metrics
-# CSV versions are also written
+runs/<timestamp>/sellers.parquet
+runs/<timestamp>/metrics.parquet
 ```
+
+**Note:** You do **not** need to run Redis or Celery to train your RL agent using `AuctionEnv`. They are purely for large-scale data generation!
 
