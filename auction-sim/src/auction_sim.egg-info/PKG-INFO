@@ -1,0 +1,93 @@
+Metadata-Version: 2.4
+Name: auction-sim
+Version: 0.1.0
+Summary: Celery-powered multi-slot auction simulator
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+
+# AuctionSim-Py 
+
+Python-only, Celery-powered multi-slot auction simulator with user and seller dynamics, budget pacing, regulation, and configurable metrics.
+
+## How to run (with Redis installation options)
+
+### 0) Create a virtualenv and install Python dependencies 
+from the **repo root**:
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .
+
+```
+
+### 1) Install and start Redis (choose ONE path)
+
+**A) Docker (fastest, cross‑platform)**
+```bash
+docker compose up -d redis
+# verify
+docker compose logs redis | tail -n 20
+```
+
+**B) Ubuntu/Debian (apt)**
+```bash
+sudo apt update
+sudo apt install -y redis-server
+# (optional) ensure Redis starts on boot
+sudo systemctl enable redis-server
+# start now and verify
+sudo systemctl start redis-server
+redis-cli ping   # should print: PONG
+```
+
+**C) Fedora/CentOS/RHEL**
+```bash
+# Fedora / RHEL 9+
+sudo dnf install -y redis
+sudo systemctl enable --now redis
+redis-cli ping
+# CentOS 7 / RHEL 7 (older)
+sudo yum install -y redis
+sudo systemctl enable --now redis
+redis-cli ping
+```
+
+**D) macOS (Homebrew)**
+```bash
+# install Homebrew first if not present: https://brew.sh
+brew update
+brew install redis
+# start as a background service
+brew services start redis
+redis-cli ping
+```
+
+**E) Windows**
+- Recommended: **WSL2 + Ubuntu** → then follow Ubuntu steps above, or
+- Use **Docker Desktop** and run: `docker compose up -d redis`
+
+> Tip: If Redis runs on a different host/port/db, set env vars before launching Celery:
+> `export CELERY_BROKER_URL=redis://<host>:<port>/<db>`
+
+### 2) Start a Celery worker
+```bash
+celery -A auction_sim.simulation.tasks worker --loglevel INFO
+```
+
+### 3) Run a simulation
+**Single-process (local)**
+```bash
+python -m auction_sim.cli run --config configs/example.json
+```
+**Distributed (Celery)**
+```bash
+python -m auction_sim.cli run --config configs/example.json --distributed
+```
+
+### 4) Inspect outputs
+```
+runs/<timestamp>/sellers.parquet  # per-seller KPIs
+runs/<timestamp>/metrics.parquet  # run-level metrics
+# CSV versions are also written
+```
+
